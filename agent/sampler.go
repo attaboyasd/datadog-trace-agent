@@ -14,8 +14,6 @@ import (
 	"github.com/DataDog/datadog-trace-agent/watchdog"
 )
 
-const spanAnalyzedTransaction = "_analyzed_transaction"
-
 // Sampler chooses wich spans to write to the API
 type Sampler struct {
 	sampled               chan *model.Trace
@@ -67,24 +65,30 @@ func (s *Sampler) Run() {
 // Add samples a trace then keep it until the next flush
 func (s *Sampler) Add(t processedTrace) {
 	s.totalTraceCount++
+
 	if s.engine.Sample(t.Trace, t.Root, t.Env) {
 		s.keptTraceCount++
-		t.Root.Metrics[spanAnalyzedTransaction] = 1
 		s.sampled <- &t.Trace
 	}
 
-	s.Analyze(t.Root)
+	// inspect the WeightedTrace so that we can identify top-level spans
+	// Only top-level spans are eligible to be analyzed
+	for _, span := range t.WeightedTrace {
+		if analyzeRate, ok := s.analyzedRateByService[span.Service]; ok {
+			s.Analyze(span, analyzeRate)
+		}
+	}
 }
 
 // Analyze queues a span for analysis, applying any sample rate specified
-func (s *Sampler) Analyze(t *model.Span) {
-	sampleRate, ok := s.analyzedRateByService[t.Service]
-	if !ok {
+// Only top-level spans are eligible to be analyzed
+func (s *Sampler) Analyze(span *model.WeightedSpan, sampleRate float64) {
+	if !span.TopLevel {
 		return
 	}
 
-	if sampler.SampleByRate(t.TraceID, sampleRate) {
-		s.analyzed <- t
+	if sampler.SampleByRate(span.TraceID, sampleRate) {
+		s.analyzed <- span.Span
 	}
 }
 
