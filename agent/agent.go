@@ -79,7 +79,7 @@ func NewAgent(conf *config.AgentConfig, exit chan struct{}) *Agent {
 
 	ss := NewScoreSampler(conf, sampledTraceChan, analyzedTransactionChan)
 	ps := NewPrioritySampler(conf, dynConf, sampledTraceChan, analyzedTransactionChan)
-	tw := writer.NewTraceWriter(conf, sampledTraceChan)
+	tw := writer.NewTraceWriter(conf, sampledTraceChan, analyzedTransactionChan)
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, serviceChan)
 
